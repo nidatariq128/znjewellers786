@@ -1,0 +1,140 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Common security primitives
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.email == 'nidatariq6nov@gmail.com'
+      );
+    }
+
+    // Helper functions for entity validation
+    function isValidUser(data) {
+      return data.keys().hasAll(['id', 'email', 'role']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.email is string && data.email.size() <= 128 &&
+             data.role in ['customer', 'admin'];
+    }
+
+    function isValidProduct(data) {
+      return data.keys().hasAll(['id', 'name', 'category', 'price', 'stock']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.name is string && data.name.size() <= 200 &&
+             data.category is string && data.category.size() <= 64 &&
+             data.price is number && data.price >= 0 &&
+             data.stock is number && data.stock >= 0;
+    }
+
+    function isValidOrder(data) {
+      return data.keys().hasAll(['id', 'orderNumber', 'customerName', 'customerPhone', 'total', 'paymentMethod', 'orderStatus']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.orderNumber is string && data.orderNumber.size() <= 64 &&
+             data.customerName is string && data.customerName.size() <= 128 &&
+             data.customerPhone is string && data.customerPhone.size() <= 32 &&
+             data.total is number && data.total >= 0 &&
+             data.paymentMethod in ['cod', 'bank_transfer', 'jazzcash', 'easypaisa', 'online_card'] &&
+             data.orderStatus in ['Order Placed', 'Confirmed', 'Processing', 'Shipped', 'Out for Delivery', 'Delivered', 'Cancelled'];
+    }
+
+    function isValidReview(data) {
+      return data.keys().hasAll(['id', 'productId', 'rating', 'comment', 'userName']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.productId is string && data.productId.size() <= 128 &&
+             data.rating is number && data.rating >= 1 && data.rating <= 5 &&
+             data.comment is string && data.comment.size() <= 1000 &&
+             data.userName is string && data.userName.size() <= 128;
+    }
+
+    function isValidWishlist(data) {
+      return data.keys().hasAll(['userId', 'productIds']) &&
+             data.userId is string && data.userId.size() <= 128 &&
+             data.productIds is list && data.productIds.size() <= 200;
+    }
+
+    // 1. Users collection
+    match /users/{userId} {
+      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isSignedIn() && request.auth.uid == userId && isValidUser(incoming()) && incoming().role == 'customer';
+      allow update: if isSignedIn() && (
+        (request.auth.uid == userId && isValidUser(incoming()) && incoming().role == existing().role) ||
+        isAdmin()
+      );
+      allow delete: if isAdmin();
+    }
+
+    // 2. Admins registry
+    match /admins/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // 3. Products catalogue
+    match /products/{productId} {
+      allow read, write: if true;
+    }
+
+    // 4. Orders
+    match /orders/{orderId} {
+      allow read, create, update: if true;
+      allow delete: if isAdmin();
+    }
+
+    // 5. Wishlists
+    match /wishlists/{userId} {
+      allow read: if isSignedIn() && request.auth.uid == userId;
+      allow create, update: if isSignedIn() && request.auth.uid == userId && isValidWishlist(incoming());
+      allow delete: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    // 6. Reviews
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isValidReview(incoming());
+      allow update, delete: if isAdmin();
+    }
+
+    // 7. Newsletter Subscribers
+    match /subscribers/{subscriberId} {
+      allow read: if isAdmin();
+      allow create: if incoming().keys().hasAll(['email']) &&
+                       incoming().email is string &&
+                       incoming().email.size() <= 128;
+      allow update, delete: if isAdmin();
+    }
+
+    // 8. Store Settings
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // 9. Health check test doc
+    match /test/{docId} {
+      allow read, write: if true;
+    }
+  }
+}
