@@ -1,0 +1,6 @@
+{
+  "name": "ZN JEWELLERS",
+  "description": "Luxury timepieces, bridal bangles, designer handbags, and waterproof stainless steel jewellery by ZN JEWELLERS.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
