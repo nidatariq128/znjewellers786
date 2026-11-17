@@ -2894,7 +2894,7 @@ Only recommend products and prices from the LIVE CATALOG above. Never invent pro
 // Vite Dev Middleware / Production Static Asset Serving
 // ------------------------------------------------------------------
 async function startServer() {
-  const PORT = Number(process.env.APP_PORT || process.env.DEFAULT_APP_PORT) || 3000;
+  const PORT = Number(process.env.APP_PORT || process.env.DEFAULT_APP_PORT || process.env.PORT) || 3000;
   const isProd = process.env.NODE_ENV === 'production';
 
   if (!isProd) {
